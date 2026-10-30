@@ -659,6 +659,26 @@ body.bg3d-live .bg-veil{background:linear-gradient(180deg,rgba(7,9,20,0),rgba(7,
 .emotes button small{font-size:10px;color:var(--muted)}
 .emotes button:active{transform:scale(.92)}
 @media (max-width:860px){.street-card{padding:8px 10px;max-width:none}.street-t{font-size:14px;margin-bottom:4px}.street-t small.ctl{display:none}.emotes button{padding:3px 6px;font-size:18px}.emotes button small{display:none}.street-ui{bottom:calc(70px + env(safe-area-inset-bottom,0px));padding:0 8px}}
+/* ---------- 폰 전용 거리 UI ---------- */
+body.street-mobile .mhead,body.street-mobile .bottombar,body.street-mobile .side-edge,body.street-mobile #mood,body.street-mobile .street-ui,body.street-mobile .side{display:none !important}
+body.street-mobile #walk-layer{top:0}
+body.street-mobile main{padding:0}
+.mstreet button{font:inherit}
+#ms-exit{position:fixed;left:max(10px,env(safe-area-inset-left,0px));top:max(10px,env(safe-area-inset-top,0px));z-index:3;font-size:12px;font-weight:700;padding:6px 11px;border-radius:999px;background:rgba(10,13,30,.72);border:1px solid var(--line2);color:var(--fg)}
+#ms-menu{position:fixed;right:max(10px,env(safe-area-inset-right,0px));top:max(8px,env(safe-area-inset-top,0px));z-index:3;width:40px;height:40px;border-radius:50%;font-size:24px;line-height:1;background:rgba(10,13,30,.72);border:1px solid var(--line2);color:var(--fg)}
+#ms-panel{position:fixed;right:max(10px,env(safe-area-inset-right,0px));top:calc(max(8px,env(safe-area-inset-top,0px)) + 46px);z-index:4;background:rgba(10,13,30,.94);border:1px solid var(--line2);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:200px;max-width:min(92vw,320px);box-shadow:var(--shadow)}
+#ms-panel[hidden]{display:none}
+#ms-panel .ms-h{font-size:12px;font-weight:700;color:var(--muted)}
+#ms-panel .emotes{margin:0;justify-content:flex-start}
+#ms-panel .emotes button{padding:5px 8px;font-size:20px}
+#ms-panel .emotes button small{display:block;font-size:10px}
+#joy{position:fixed;left:max(16px,env(safe-area-inset-left,0px));bottom:max(16px,env(safe-area-inset-bottom,0px));width:128px;height:128px;z-index:3;touch-action:none;user-select:none;-webkit-user-select:none}
+.joy-ring{position:relative;width:100%;height:100%;border-radius:50%;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.35);backdrop-filter:none}
+.joy-ring .k{position:absolute;font-weight:900;font-size:14px;color:rgba(255,255,255,.8);pointer-events:none}
+.joy-ring .k.w{top:5px;left:50%;transform:translateX(-50%)}.joy-ring .k.s{bottom:5px;left:50%;transform:translateX(-50%)}.joy-ring .k.a{left:9px;top:50%;transform:translateY(-50%)}.joy-ring .k.d{right:9px;top:50%;transform:translateY(-50%)}
+#joy-knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:rgba(141,162,255,.85);box-shadow:0 4px 14px rgba(0,0,0,.5);pointer-events:none}
+#rotate-hint{position:fixed;inset:0;z-index:6;background:rgba(5,6,15,.93);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;padding:20px}
+#rotate-hint[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -953,6 +973,7 @@ function showView(v) {
   document.body.classList.toggle('dice-mode', v === 'dice');
   bgSync(v);
   if (v !== 'street' && typeof walkOn === 'function' && PLAY.on) walkOn(false);
+  if (v !== 'street' && document.body.classList.contains('street-mobile')) { document.body.classList.remove('street-mobile'); if (typeof streetLeave === 'function') streetLeave(); }
   if (lastView && lastView !== v && !(window.INTRO && INTRO.active)) moodBanner(); lastView = v;
   try { localStorage.setItem('zl.view', v); } catch (e) { }
 }
@@ -965,6 +986,7 @@ document.addEventListener('click', function (e) {
   var t = e.target.closest('.tab[data-view]'); if (!t) return;
   if (t.classList.contains('locked') && !(t.dataset.view === 'settings' && typeof GH !== 'undefined' && GH.enabled)) { e.preventDefault(); toast('🔒 ' + (t.dataset.view === 'entry' ? '경기 입력' : '설정') + '은 관리자(사이트 주인)만 할 수 있어요'); return; }
   $('#sheet').hidden = true;
+  if (t.dataset.view === 'street' && typeof streetImmersive === 'function') streetImmersive();
   if (location.hash !== '#' + t.dataset.view) location.hash = t.dataset.view; else showView(t.dataset.view);
   window.scrollTo({ top: 0 });
 });
@@ -2035,6 +2057,28 @@ function bgSync(v) { bgVisible(bgWanted(v)); }
 function renderStreet() {
   var el = $('#view-street'), ok = FX.ok && typeof BG !== 'undefined' && BG.started;
   if (FX.ok && !ok) { ok = bgStart(); if (ok) bgSetMode('street'); }
+  var mobile = ok && isTouchDevice();
+  document.body.classList.toggle('street-mobile', mobile);
+  if (mobile) {
+    el.innerHTML = '<div id="walk-layer"></div><div class="mstreet"><button id="ms-exit">✕ 나가기</button><button id="ms-menu" aria-label="메뉴">⋮</button>' +
+      '<div id="ms-panel" hidden><div class="ms-h">이모션</div><div class="emotes">' + EMOTES.map(function (e) { return '<button data-emote="' + e[0] + '">' + e[1] + '<small>' + e[2] + '</small></button>'; }).join('') + '</div>' +
+      '<button class="btn sm primary" id="car-btn" hidden>🚗 1등 자동차 타기</button><div class="row" style="gap:6px;justify-content:space-between"><button class="btn sm ghost" id="ms-full">🔄 가로·전체화면</button><button class="btn sm ghost" id="street-off">⚡ 3D 끄기</button></div></div>' +
+      '<div id="joy"><div class="joy-ring"><span class="k w">W</span><span class="k a">A</span><span class="k s">S</span><span class="k d">D</span><div id="joy-knob"></div></div></div>' +
+      '<div id="rotate-hint" hidden><div style="font-size:44px">📱↻</div><b>폰을 가로로 돌려주세요</b><p class="muted small" style="margin:0;max-width:30ch">가로가 훨씬 잘 보여요. 안드로이드는 아래 버튼으로 바로 고정되고, 아이폰은 직접 돌려주세요.</p><button class="btn primary" id="rotate-go">🔄 가로·전체화면으로 보기</button><button class="btn ghost sm" id="rotate-skip">그냥 세로로 볼래요</button></div></div>';
+    var panel = $('#ms-panel');
+    $('#ms-menu').addEventListener('click', function () { panel.hidden = !panel.hidden; });
+    $('#ms-exit').addEventListener('click', function () { streetLeave(); location.hash = 'home'; });
+    $('#ms-full').addEventListener('click', function () { panel.hidden = true; streetImmersive(); });
+    $('#rotate-go').addEventListener('click', function () { streetImmersive(); setTimeout(rotateCheck, 600); });
+    $('#rotate-skip').addEventListener('click', function () { PLAY.rotateDismiss = true; rotateCheck(); });
+    panel.addEventListener('click', function (e) { var b = e.target.closest('[data-emote]'); if (b) { emote(b.dataset.emote); panel.hidden = true; } });
+    $('#car-btn').addEventListener('click', function () { panel.hidden = true; carTry(); });
+    $('#street-off').addEventListener('click', function () { try { localStorage.setItem('zl.no3d', '1'); sessionStorage.setItem('zl.skipgate', '1'); sessionStorage.setItem('zl.view', 'street'); } catch (e) { } streetLeave(); location.reload(); });
+    joyBind($('#joy')); rotateCheck();
+    bgSync('street');
+    var L0 = $('#walk-layer'); walkBindKeys(); walkBindLayer(L0); walkOn(true);
+    return;
+  }
   el.innerHTML = (ok ? '<div id="walk-layer"></div>' : '') + '<div class="street-ui">' + (ok ? '<div class="street-card"><div class="street-t">🧟 좀비 거리 <small class="ctl">' + (isTouchDevice() ? '왼쪽 반 드래그 = 걷기 · 오른쪽 반 드래그 = 둘러보기' : 'W A S D(방향키) = 걷기 · Shift = 뛰기 · 마우스 드래그 = 둘러보기 · 숫자키 1~6 = 이모션') + '</small><small id="street-n"></small></div><div class="emotes" id="emotes">' + EMOTES.map(function (e, i) { return '<button data-emote="' + e[0] + '" title="' + e[2] + ' (' + (i + 1) + ')">' + e[1] + '<small>' + e[2] + '</small></button>'; }).join('') + '</div><div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center"><a class="btn sm primary" href="#games">🎮 미니게임 1:1</a><a class="btn sm" href="#home">📊 전적 보기</a><a class="btn sm" href="#dice">🎲 주장 뽑기</a><button class="btn sm" id="car-btn" hidden>🚗 1등 자동차 타기</button><button class="btn sm ghost" id="street-off">⚡ 3D 끄기 (렉 걸리면)</button></div><small class="muted" id="street-hint" style="display:block;margin-top:6px"></small></div>' :
     '<div class="street-card"><div class="street-t">🧟 좀비 거리</div><p class="muted small" style="margin:0 0 10px">' + (FX.why === 'off' ? '3D를 꺼둔 상태예요. 켜면 좀비 거리가 보입니다.' : '이 기기에서는 3D를 켤 수 없어요: ' + esc(FX_WHY[FX.why] || FX.why || '')) + '</p><div class="row" style="gap:8px;justify-content:center">' + (FX.why === 'off' ? '<button class="btn sm primary" id="street-on">3D 다시 켜기</button>' : '') + '<a class="btn sm" href="#home">📊 전적 보기</a></div></div>') + '</div>';
   var cb = $('#car-btn'); if (cb) cb.addEventListener('click', function () { carTry(); });
@@ -2092,7 +2136,7 @@ function lobbyCard() {
       return;
     }
     if (name) { try { localStorage.setItem('zl.me', name); } catch (e) { } if (typeof netSayName === 'function') netSayName(); }
-    pleaCard(function () { if (target && currentView() !== target) location.hash = target; else showView(currentView()); });
+    pleaCard(function () { if (target === 'street' && typeof streetImmersive === 'function') streetImmersive(); if (target && currentView() !== target) location.hash = target; else showView(currentView()); });
   }
   $('#nick-games').addEventListener('click', function () { go('games'); });
   $('#nick-chat').addEventListener('click', function () { go('chat'); });
@@ -2795,7 +2839,7 @@ function walkBindLayer(L) {
   L.addEventListener('pointerdown', function (e) {
     if (!PLAY.on) return; e.preventDefault(); try { L.setPointerCapture(e.pointerId); } catch (x) { }
     var touch = e.pointerType === 'touch';
-    if (touch && e.clientX < window.innerWidth / 2) { PLAY.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; PLAY.move = { x: 0, y: 0 }; }
+    if (touch && !$('#joy') && e.clientX < window.innerWidth / 2) { PLAY.stick = { id: e.pointerId, x0: e.clientX, y0: e.clientY }; PLAY.move = { x: 0, y: 0 }; }
     else PLAY.drag = { id: e.pointerId, x0: e.clientX, y0: e.clientY, yaw0: PLAY.yaw, pitch0: PLAY.pitch };
   });
   L.addEventListener('pointermove', function (e) {
@@ -2890,9 +2934,9 @@ setInterval(function () {
   var el = $('#street-n'); if (el) el.textContent = '지금 거리에 ' + (1 + peerCount()) + '명';
 }, 140);
 setInterval(function () {
-  var b = $('#car-btn'), h = $('#street-hint'); if (!b || !h) return;
-  var top = isTop(); b.hidden = !top; b.textContent = CAR.on ? '🚗 내리기' : '🚗 1등 자동차 타기';
-  h.textContent = CAR.on ? (isTouchDevice() ? '운전 중 · 왼쪽 드래그로 가속·핸들' : '운전 중 · W/S 가속·후진 · A/D 핸들 · E 내리기') : (top ? (carDist() < 3.4 ? '👑 자동차 옆! E 키(또는 버튼)로 타기' : '👑 1등은 빨간 자동차를 탈 수 있어요 (동상 옆)') : '🚗 빨간 차는 승률 1등(' + (BG.topName || '?') + ') 전용');
+  var b = $('#car-btn'), h = $('#street-hint'); if (!b && !h) return;
+  var top = isTop(); if (b) { b.hidden = !top; b.textContent = CAR.on ? '🚗 내리기' : (top && carDist() < 3.4 ? '🚗 자동차 타기 (바로 옆!)' : '🚗 1등 자동차 타기'); }
+  if (h) h.textContent = CAR.on ? (isTouchDevice() ? '운전 중 · 왼쪽 드래그로 가속·핸들' : '운전 중 · W/S 가속·후진 · A/D 핸들 · E 내리기') : (top ? (carDist() < 3.4 ? '👑 자동차 옆! E 키(또는 버튼)로 타기' : '👑 1등은 빨간 자동차를 탈 수 있어요 (동상 옆)') : '🚗 빨간 차는 승률 1등(' + (BG.topName || '?') + ') 전용');
 }, 300);
 
 /* ================= 1등 전용 자동차: 승률 1등만 탑승 (비밀번호 있으면 처음 한 번 확인) ================= */
@@ -2908,7 +2952,7 @@ function carTry() {
   var pin = DB.settings.topPin, ok = false; try { ok = !!pin && localStorage.getItem('zl.toppin') === pin; } catch (e) { }
   if (pin && !ok) { var v = window.prompt('👑 1등 인증 비밀번호 (관리자한테 받은 번호)'); if (v === null) return; if (String(v).trim() !== pin) { toast('🚨 비밀번호 틀림. 짝퉁 1등 신고 접수'); return; } try { localStorage.setItem('zl.toppin', pin); } catch (e) { } }
   CAR.on = true; PLAY.mode = 'car'; CAR.speed = 0; CAR.steer = 0; if (SFX.honk) SFX.honk(); carLights(true); if (ME.P) ME.P.g.visible = false;
-  toast(isTouchDevice() ? '🚗 탑승! 왼쪽 드래그로 운전 · 버튼으로 내리기' : '🚗 탑승! W/S 가속·후진 · A/D 핸들 · E 내리기');
+  toast(isTouchDevice() ? '🚗 탑승! 조이스틱으로 운전 · ⋮ 메뉴에서 내리기' : '🚗 탑승! W/S 가속·후진 · A/D 핸들 · E 내리기');
 }
 function carExit() {
   if (!CAR.on) return; CAR.on = false; PLAY.mode = 'walk'; CAR.speed = 0; carLights(false); if (ME.P) ME.P.g.visible = true;
@@ -2958,6 +3002,26 @@ function emoteFrame(P, t) {
   else if (k === 'chicken') { P.armR.rotation.x = -1.7; P.armR.rotation.z = -.2; }
   else if (k === 'dance') { P.armL.rotation.x = -1.3 + s * .9; P.armR.rotation.x = -1.3 - s * .9; P.armL.rotation.z = .7; P.armR.rotation.z = -.7; P.g.position.y = Math.abs(Math.sin(t * 6)) * .2; P.torso.rotation.x = s * .1; }
 }
+
+/* ================= 폰 전용 거리 UI: 조이스틱 · 가로모드 · 점 3개 메뉴 ================= */
+function joyBind(el) {
+  var knob = el.querySelector('#joy-knob'), R = 46, active = null;
+  function move(e) { if (!active || e.pointerId !== active.id) return; var dx = e.clientX - active.cx, dy = e.clientY - active.cy, d = Math.hypot(dx, dy); if (d > R) { dx *= R / d; dy *= R / d; } knob.style.transform = 'translate(' + dx + 'px,' + dy + 'px)'; PLAY.move = { x: dx / R, y: dy / R }; }
+  el.addEventListener('pointerdown', function (e) { e.preventDefault(); try { el.setPointerCapture(e.pointerId); } catch (x) { } var r = el.getBoundingClientRect(); active = { id: e.pointerId, cx: r.left + r.width / 2, cy: r.top + r.height / 2 }; move(e); });
+  el.addEventListener('pointermove', move);
+  function up(e) { if (!active || e.pointerId !== active.id) return; active = null; PLAY.move = null; knob.style.transform = ''; }
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+function streetImmersive() {
+  if (!isTouchDevice()) return;
+  try {
+    var el = document.documentElement, lock = function () { try { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(function () { }); } catch (e) { } };
+    if (!document.fullscreenElement && el.requestFullscreen) el.requestFullscreen({ navigationUI: 'hide' }).then(lock, function () { lock(); }); else lock();
+  } catch (e) { }
+}
+function streetLeave() { try { if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () { }); } catch (e) { } try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) { } }
+function rotateCheck() { var h = $('#rotate-hint'); if (!h) return; h.hidden = !(window.innerHeight > window.innerWidth) || !!PLAY.rotateDismiss; }
+window.addEventListener('resize', rotateCheck); window.addEventListener('orientationchange', function () { setTimeout(rotateCheck, 300); });
 
 /* ================= 같은 사이트를 연 사람끼리 바로 연결 (PeerJS/WebRTC) — 계정·설치 없이 링크만 열면 됨 ================= */
 var NET = { peer: null, id: null, slot: -1, conns: {}, ok: false, tried: false, key: 'zl-4bfetbsn-dongbbang', MAX: 16, pending: {}, failT: null, names: {}, fail: false };
